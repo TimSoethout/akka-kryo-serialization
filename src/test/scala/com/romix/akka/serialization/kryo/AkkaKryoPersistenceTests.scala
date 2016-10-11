@@ -4,11 +4,14 @@ import java.io.File
 
 import akka.actor._
 import akka.persistence._
-import akka.serialization.SerializationExtension
+import akka.serialization.{Serialization, SerializationExtension}
 import akka.testkit.{ImplicitSender, TestKit}
+import cats.data.Validated.Valid
+import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import com.typesafe.config.ConfigFactory
 import org.apache.commons.io.FileUtils
 import org.scalatest._
+
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -24,6 +27,11 @@ case class ExampleState(received: List[Person] = Nil) {
   def updated(s: Person): ExampleState = copy(s :: received)
   override def toString = received.reverse.toString
 }
+
+
+case class Test(s:String)
+case class ValidatedWrapper(v: ValidatedNel[String, Int])
+
 
 object SnapshotRecoveryLocalStoreSpec {
   class SnapshotTestPersistentActor(name: String, probe: ActorRef) extends PersistentActor {
@@ -54,11 +62,43 @@ class SnapshotRecoveryTest extends PersistenceSpec with ImplicitSender {
     val persistentActor = system.actorOf(Props(classOf[SnapshotTestPersistentActor], "PersistentActor", testActor))
     
     "should get right serializer" in {
-      val serialization = SerializationExtension(system) 
+      val serialization: Serialization = SerializationExtension(system)
       val sample = List(Person("John", "Doe"), Person("Bruce", "Wayne"), Person("Tony", "Stark"))
       val sampleHead: Person = sample.head
       assert(serialization.findSerializerFor(sample).getClass == classOf[KryoSerializer])
       assert(serialization.findSerializerFor(sampleHead).getClass == classOf[KryoSerializer])
+
+      val valid: ValidatedNel[String, Int] = Validated.valid(1)
+      val invalid: ValidatedNel[String, Int] = Validated.invalidNel("errrr")
+
+      val v = serialization.serialize(valid)
+      val iv = serialization.serialize(invalid)
+
+      assert(v.isSuccess)
+      assert(iv.isSuccess)
+
+      println(v)
+      println(iv)
+
+      val wrappedv: Option[ValidatedNel[String, Int]] = Some(valid)
+      val wrappediv: Option[ValidatedNel[String, Int]] = Some(valid)
+
+      val wv = serialization.serialize(wrappedv)
+      val wiv = serialization.serialize(wrappediv)
+
+      assert(wv.isSuccess)
+      assert(wiv.isSuccess)
+
+      println(wv)
+      println(wiv)
+
+
+      assert(serialization.serialize(Test("test")).isSuccess)
+
+      // These lines make the JVM crash
+      assert(serialization.serialize(ValidatedWrapper(valid)).isSuccess)
+      assert(serialization.serialize(ValidatedWrapper(invalid)).isSuccess)
+
 
       val serialized = serialization.serialize(sample)
       assert(serialized.isSuccess)
@@ -148,6 +188,7 @@ object TestConfig {
           "com.romix.akka.serialization.kryo.Person" = kryo
           "akka.persistence.serialization.Snapshot" = kryo
           "akka.persistence.SnapshotMetadata" = kryo
+          "scala.Product" = kryo
       }
     }
 

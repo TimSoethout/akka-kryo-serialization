@@ -41,6 +41,8 @@ object Build extends sbt.Build {
     libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.6" % "test",
     libraryDependencies += "com.typesafe.akka" %% "akka-persistence" % akkaVersion % "test",
     libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
+    libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
+    libraryDependencies += "org.typelevel"       %% "cats"                   % "0.7.2",
 
     parallelExecution in Test := false,
 
